@@ -55,21 +55,30 @@ class Game:
             await self.handle_night_action(player_name, data)
         elif data["type"] == "vote":
             print(f"Получено сообщение {data["type"]}")
-            await self.handle_vote(player_name, data["target"])
+            await self.handle_vote(player_name, data)
+        elif data["type"] == "chat":
+            await self.broadcast({
+                "type": "chat_message",
+                "sender": player_name,
+                "message": data["message"],
+                "timestamp": asyncio.get_event_loop().time()
+            })
 
     async def handle_disconnect(self, player_name: str):
+        if not self.game_started:
+            return
         was_alive = False
         if player_name in self.players:
             was_alive = self.players[player_name].is_alive
             del self.players[player_name]
         if player_name in self.connections:
             del self.connections[player_name]
-        alive_players = [p.name for p in self.players.values() if p.is_alive]
-        await self.broadcast({
-            "type": "players_update",
-            "players": alive_players
-        })
-        if self.game_started and was_alive:
+        if self.game_started:
+            alive_players = [p.name for p in self.players.values() if p.is_alive]
+            await self.broadcast({
+                "type": "players_update",
+                "players": alive_players
+            })
             current_alive = len([p for p in self.players.values() if p.is_alive])
             if current_alive < self.min_players:
                 await self.end_game("game_cancelled")
@@ -192,17 +201,6 @@ class Game:
         pass
 
     async def process_night_actions(self):
-        '''if Role.MAFIA not in self.night_actions:
-            mafia = [p for p in self.players.values() if p.role == Role.MAFIA and p.is_alive]
-            if mafia:
-                targets = [p.name for p in self.players.values() if p.is_alive and p != mafia[0]]
-                self.night_actions[Role.MAFIA] = random.choice(targets) if targets else None
-
-        if Role.DOCTOR not in self.night_actions:
-            doctor = [p for p in self.players.values() if p.role == Role.DOCTOR and p.is_alive]
-            if doctor:
-                targets = [p.name for p in self.players.values() if p.is_alive and p != doctor[0]]
-                self.night_actions[Role.DOCTOR] = random.choice(targets) if targets else None'''
         print("Обработка ночных действий")
         kill_target = self.night_actions.get(Role.MAFIA)
         protection_target = self.night_actions.get(Role.DOCTOR)
@@ -231,32 +229,30 @@ class Game:
             "phase": "day",
             "players": [p.name for p in self.players.values() if p.is_alive]
         })
-        for i in range(3, 0, -1):
-            await self.broadcast({
-                "type": "day_countdown",
-                "message": f"Рассвет через {i}..."
-            })
-            await asyncio.sleep(1)
-        self.votes.clear()
 
-        # Start voting with timeout
+        for i in range(3, 0, -1):
+            await self.broadcast({"type": "day_countdown", "message": f"Рассвет через {i}..."})
+            await asyncio.sleep(1)
+
+        self.votes.clear()
         alive_players = [p.name for p in self.players.values() if p.is_alive]
-        await self.broadcast({
-            "type": "start_voting",
-            "candidates": alive_players
-        })
+        await self.broadcast({"type": "start_voting", "candidates": alive_players})
         try:
             await asyncio.wait_for(
-                self.wait_for_votes(alive_players),
+                self.wait_for_votes_completion(alive_players),
                 timeout=60
             )
         except asyncio.TimeoutError:
-            print("Voting time expired")
+            print("Таймаут голосования")
 
         await self.process_votes()
 
-    async def wait_for_votes(self, alive_players):
-        while len(self.votes) < len(alive_players):
+    async def wait_for_votes_completion(self, alive_players):
+        while True:
+            current_alive = [p.name for p in self.players.values() if p.is_alive]
+            valid_voters = [v for v in self.votes if v in current_alive]
+            if len(valid_voters) >= len(current_alive):
+                break
             await asyncio.sleep(1)
 
     async def collect_votes(self):
@@ -284,9 +280,16 @@ class Game:
             "type": "vote_accepted",
             "target": target
         })
+        print(f"Голос получен от {voter} за {target}")
 
     async def process_votes(self):
-        if not self.votes:
+        valid_votes = {
+            voter: target
+            for voter, target in self.votes.items()
+            if voter in self.players and self.players[voter].is_alive
+        }
+
+        if not valid_votes:
             await self.broadcast({
                 "type": "day_result",
                 "executed": None,
@@ -295,21 +298,13 @@ class Game:
             return
 
         vote_counts = {}
-        for target in self.votes.values():
+        for target in valid_votes.values():
             if target in vote_counts:
                 vote_counts[target] += 1
             else:
                 vote_counts[target] = 1
 
-        if not vote_counts:
-            await self.broadcast({
-                "type": "day_result",
-                "executed": None,
-                "message": "Нет действительных голосов"
-            })
-            return
-
-        max_votes = max(vote_counts.values())
+        max_votes = max(vote_counts.values(), default=0)
         candidates = [k for k, v in vote_counts.items() if v == max_votes]
 
         if len(candidates) == 1:
@@ -326,6 +321,7 @@ class Game:
                 "executed": None,
                 "message": "Ничья, никто не казнен"
             })
+        await asyncio.sleep(3)
 
     async def check_win_conditions(self):
         alive_players = [p for p in self.players.values() if p.is_alive]
@@ -339,11 +335,14 @@ class Game:
 
     async def end_game(self, winner: str):
         self.game_started = False
+        roles = {p.name: p.role.value for p in self.players.values()}
         await self.broadcast({
             "type": "game_over",
             "winner": winner,
-            "roles": {p.name: p.role.value for p in self.players.values()}
+            "roles": roles
         })
+        self.players.clear()
+        self.connections.clear()
 
     async def send_to_player(self, player_name: str, message: dict):
         ws = self.connections.get(player_name)

@@ -47,12 +47,12 @@ class NetworkClient:
             await self.handle_role_assignment(data)
         elif message_type=="night_result":
             self.night_data=data
-            if data.get("killed") == self.name:
+            if data.get("killed") == self.name and data.get("killed") != data.get("protected"):
                 self.is_alive = False
         elif message_type == "day_result":
             if data.get("executed") == self.name:
                 self.is_alive = False
-            self.game_ui.show_day_result(self.night_data)
+            self.game_ui.show_day_result(data)
         elif message_type == "phase":
             print(data["phase"])
             await self.handle_phase_change(data)
@@ -69,16 +69,12 @@ class NetworkClient:
         elif message_type == "game_cancelled":
             if self.game_ui:
                 print("Игра отменена: недостаточно игроков")
+        elif message_type == "chat_message":
+            if self.game_ui:
+                self.game_ui.add_chat_message(data["sender"], data["message"])
 
     async def handle_role_assignment(self, data: dict):
         self.role = data["role"]
-
-    async def handle_night_action_request(self, data: dict):
-        if self.game_ui:
-            self.game_ui.show_night_phase(
-                data["role"],
-                data.get("players", [])
-            )
 
     async def handle_phase_change(self, data: dict):
         phase = data["phase"]
@@ -110,10 +106,12 @@ class NetworkClient:
             self.game_ui.update_players_list(self.players)
 
     async def handle_game_over(self, data: dict):
-        winner = data["winner"]
-        roles = data["roles"]
+        self.is_alive = True
+        self.role = None
+        self.players = {}
         if self.game_ui:
-            self.game_ui.show_game_over(winner, roles)
+            self.game_ui.show_game_over(data["winner"], data["roles"])
+        await self.close_ws()
 
     async def handle_error(self, data: dict):
         error_msg = data["message"]
@@ -129,6 +127,7 @@ class NetworkClient:
         if self.ws and not self.ws.closed:
             await self.ws.close()
         self.ws = None
+        self.name = ""
 
     def set_game_ui(self, game_ui):
         self.game_ui = game_ui

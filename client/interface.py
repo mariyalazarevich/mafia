@@ -23,6 +23,7 @@ class GameUI:
         self.name=""
 
     def _init_ui(self):
+        self.current_view = None
         self.page.bgcolor = ft.colors.TRANSPARENT
         self.page.decoration = ft.BoxDecoration(
             image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
@@ -38,6 +39,25 @@ class GameUI:
         self.role_display = ft.Text()
         self.players_list = ft.ListView(expand=True)
         self.main_column = ft.Column()
+        self.chat_messages = ft.ListView(expand=True)
+        self.chat_history = []
+        self.day_phase_controls = []
+        self.chat_input = ft.TextField(
+            label="Сообщение",
+            multiline=True,
+            max_lines=3,
+            text_style=l_w_style,
+            border_color=ft.colors.RED,
+            cursor_color=ft.colors.RED,
+            focused_border_color=ft.colors.RED,
+            label_style=l_r_style
+        )
+        self.chat_btn = ft.IconButton(
+            icon=ft.icons.SEND,
+            icon_color=ft.colors.RED,
+            on_click=self.send_chat_message
+        )
+
 
     @staticmethod
     def handle_hover(button, e):
@@ -50,6 +70,7 @@ class GameUI:
         button.update()
 
     def show_connect_view(self):
+        self.page.run_task(self.network.close_ws)
         self.clear_page()
         self.page.decoration = ft.BoxDecoration(
             image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
@@ -238,6 +259,7 @@ class GameUI:
             return f"Убит: {killed} ({role}). Получил защиту: {protected}"
 
     def show_day_phase(self, players: list, night_data):
+        self.current_view = "day"
         self.clear_page()
         title = ft.Text(f"{self.name} : {self.role}", style=r_style)
         self.page.decoration = ft.BoxDecoration(
@@ -258,6 +280,13 @@ class GameUI:
             style=ft.ButtonStyle(
                 side=ft.BorderSide(2, ft.colors.WHITE)
         ))
+        chat_button = ft.OutlinedButton(
+            content=ft.Text("Перейти в чат", font_family="Ebbe", size=26, color=ft.colors.WHITE),
+            style=ft.ButtonStyle(
+                side=ft.BorderSide(2, ft.colors.WHITE)
+            ))
+        chat_button.on_click = lambda e: self.show_chat(e)
+        chat_button.on_hover = lambda e: self.handle_hover(chat_button, e)
         button.on_click = lambda e: self.send_vote(e, button)
         button.on_hover=lambda e: self.handle_hover(button, e)
         text=self.get_day_text(night_data)
@@ -270,10 +299,43 @@ class GameUI:
                     ))
         self.page.controls.append(self.vote_dropdown)
         self.page.controls.append(button)
+        self.page.controls.append(chat_button)
+        self.day_phase_controls = [
+            title,
+            ft.Text("День. Обсуждение", style=w_style),
+            ft.Text(text, style=r_style),
+            ft.ListView(controls=[ft.Text(p) for p in players], height=200),
+            self.vote_dropdown,
+            button,
+            chat_button
+        ]
         self.page.update()
+
+    def add_chat_message(self, sender: str, message: str):
+        self.chat_history.append((sender, message))
+        if self.current_view == "chat":
+            self.chat_messages.controls = [
+                ft.Text(f"{s}: {m}", style=l_w_style)
+                for s, m in self.chat_history
+            ]
+            try:
+                self.chat_messages.scroll_to(offset=-1, duration=100)
+                self.page.update()
+            except Exception as e:
+                print(f"Ошибка обновления чата: {e}")
+
+    async def send_chat_message(self, e):
+        if self.chat_input.value.strip():
+            await self.network.send({
+                "type": "chat",
+                "message": self.chat_input.value
+            })
+            self.chat_input.value = ""
+            self.page.update()
 
     def not_alive_day_phase(self, players, night_data):
         self.clear_page()
+        self.chat_messages.controls.clear()
         title = ft.Text(f"{self.name} : {self.role} – Вы мертвы", style=r_style)
         self.page.decoration = ft.BoxDecoration(
             image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
@@ -291,6 +353,7 @@ class GameUI:
 
     def show_day_result(self, data):
         self.clear_page()
+        self.chat_messages.controls.clear()
         title1 = ft.Text(f"{self.name} : {self.role}", style=r_style)
         title = ft.Text(data["message"], style=r_style)
         text=ft.Text("Ожидание ночной фазы...", style=w_style)
@@ -298,7 +361,55 @@ class GameUI:
         self.page.controls.append(title1)
         self.page.controls.append(title)
         self.page.controls.append(text)
-        self.page.controls.append(ft.ProgressBar(color=ft.colors.RED))
+        self.page.controls.append(ft.ProgressBar(color=ft.colors.RED, width=300))
+        self.page.update()
+
+    def show_chat(self, e):
+        self.clear_page()
+        self.current_view = "chat"
+        self.chat_messages.controls = [
+            ft.Text(f"{s}: {m}", style=l_w_style)
+            for s, m in self.chat_history
+        ]
+        back_button = ft.IconButton(
+            icon=ft.icons.ARROW_BACK,
+            icon_color=ft.colors.RED,
+            on_click=lambda _: self.show_day_interface()
+        )
+        chat_container = ft.Container(
+            content=self.chat_messages,
+            width=self.page.width * 0.8,
+            height=self.page.height * 0.6,
+            border=ft.border.all(2, ft.colors.RED),
+            padding=10
+        )
+        input_row = ft.Row(
+            [
+                self.chat_input,
+                self.chat_btn
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            width=self.page.width * 0.8
+        )
+        self.page.add(
+            ft.Column(
+                [
+                    ft.Row([back_button], alignment=ft.MainAxisAlignment.START),
+                    ft.Text("Чат обсуждения", style=r_style),
+                    chat_container,
+                    ft.Divider(height=20, color=ft.colors.TRANSPARENT),
+                    input_row
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                scroll=ft.ScrollMode.ALWAYS
+            )
+        )
+        self.page.update()
+
+    def show_day_interface(self):
+        self.clear_page()
+        self.current_view = "day"
+        self.page.controls.extend(self.day_phase_controls)
         self.page.update()
 
     def send_vote(self, e, button):
@@ -402,6 +513,7 @@ class GameUI:
 
     def show_game_over(self, winner: str, roles: dict):
         self.clear_page()
+        self.current_view = "game_over"
         role_list = ft.ListView(expand=True)
         for name, role in roles.items():
             role_list.controls.append(
@@ -409,7 +521,7 @@ class GameUI:
             )
         button = ft.OutlinedButton(
             content=ft.Text("Вернуться в лобби", font_family="Ebbe", size=26, color=ft.colors.WHITE),
-            on_click=lambda e: self.show_connect_view(),
+            on_click=lambda e: self._return_to_lobby(e),
             style=ft.ButtonStyle(
                 side=ft.BorderSide(2, ft.colors.WHITE)
             )
@@ -428,3 +540,7 @@ class GameUI:
             )
         )
         self.page.update()
+
+    async def _return_to_lobby(self, e):
+        await self.network.close_ws()
+        self.show_connect_view()
