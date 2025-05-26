@@ -65,14 +65,19 @@ class Game:
             })
 
     async def handle_disconnect(self, player_name: str):
-        if not self.game_started:
-            return
+        print(f"Игрок {player_name} отключился")
         was_alive = False
         if player_name in self.players:
             was_alive = self.players[player_name].is_alive
             del self.players[player_name]
         if player_name in self.connections:
-            del self.connections[player_name]
+            try:
+                await self.connections[player_name].close()
+            except Exception as e:
+                print(f"Ошибка при закрытии соединения: {e}")
+            finally:
+                del self.connections[player_name]
+
         if self.game_started:
             if was_alive:
                 alive_players = [p.name for p in self.players.values() if p.is_alive]
@@ -83,6 +88,12 @@ class Game:
                 current_alive = len([p for p in self.players.values() if p.is_alive])
                 if current_alive < self.min_players:
                     await self.end_game("game_cancelled")
+        else:
+            # Обновляем список игроков для всех, если игра еще не началась
+            await self.broadcast({
+                "type": "players_update",
+                "players": [p.name for p in self.players.values()]
+            })
 
     async def start_game(self):
         try:

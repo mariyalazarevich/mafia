@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 import flet as ft
@@ -70,22 +69,17 @@ class GameUI:
 
     def show_connect_view(self):
         self.clear_page()
-        # Создаем кнопку "назад"
         back_button = ft.IconButton(
             icon=ft.icons.ARROW_BACK,
             icon_color=ft.colors.WHITE,
             on_click=lambda _: self.show_menu()
         )
-
-        # Настройка фона
         self.page.decoration = ft.BoxDecoration(
             image=ft.DecorationImage(
                 src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
                 fit=ft.ImageFit.COVER
             )
         )
-
-        # Контейнер с элементами формы
         form_container = ft.Container(
             content=ft.Column(
                 controls=[
@@ -99,15 +93,12 @@ class GameUI:
             alignment=ft.alignment.center,
             expand=True
         )
-
-        # Контейнер с кнопкой "назад"
         back_container = ft.Container(
             content=back_button,
             alignment=ft.alignment.top_left,
-            padding=20
+            padding=10,
+            height=100
         )
-
-        # Используем Stack для слоистого расположения
         self.page.add(
             ft.Stack(
                 controls=[
@@ -121,27 +112,29 @@ class GameUI:
 
     async def connect(self, e):
         self.name = self.player_name.value
-        if await self.network.connect(self.name):
-            self.show_waiting_view("Игра начинается...")
-
-    def show_waiting_view(self, text):
-        self.clear_page()
-        self.page.decoration = ft.BoxDecoration(
-            image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
-                                     fit=ft.ImageFit.COVER)
-        )
-        self.page.controls.append(
-            ft.Column(
-                controls=[
-                    ft.Text(text, style=w_style),
-                    ft.ProgressBar(color=ft.colors.RED)
-                ],
-                alignment=ft.MainAxisAlignment.CENTER
+        try:
+            connected = await asyncio.wait_for(
+                self.network.connect(self.name),
+                timeout=3
             )
-        )
-        self.page.update()
+            if connected:
+                await asyncio.sleep(0.5)
+                if self.network.exception:
+                    self.player_name.value = ""
+                    self.player_name.label = "Это имя уже занято"
+                    self.page.update()
+                    self.network.exception = False
+                else:
+                    self.update_players_list(self.network.players)
+            else:
+                self.show_connection_error()
+        except (asyncio.TimeoutError, ConnectionRefusedError):
+            self.show_connection_error()
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            self.show_connection_error()
 
-    def show_role_view(self, role: str, players: list, show_duration):
+    def show_role_view(self, role: str, show_duration):
         self.clear_page()
         self.role=role
         players_list = ft.ListView(
@@ -611,6 +604,7 @@ class GameUI:
             image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
                                      fit=ft.ImageFit.COVER)
         )
+        title=ft.Text("ДОБРО ПОЖАЛОВАТЬ В МАФИЮ!", style=r_style)
         connect_button = ft.OutlinedButton(
             content=ft.Text("Подключиться к игре", font_family="Ebbe", size=26, color=ft.colors.WHITE),
             on_click = lambda e: self.show_connect_view(),
@@ -635,6 +629,7 @@ class GameUI:
             )
         )
         exit_button.on_hover = lambda e: self.handle_hover(exit_button, e)
+        self.page.controls.append(title)
         self.page.controls.append(connect_button)
         self.page.controls.append(rules_button)
         self.page.controls.append(exit_button)
@@ -673,3 +668,33 @@ class GameUI:
         if self.page:
             self.page.window.close()
             self.page.update()
+
+    def show_connection_error(self):
+        self.clear_page()
+        self.page.decoration = ft.BoxDecoration(
+            image=ft.DecorationImage(
+                src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
+                fit=ft.ImageFit.COVER
+            )
+        )
+        error_text = ft.Text("Кажется, сервер недоступен. Повторите попытку позже!", style=r_style)
+        back_button = ft.OutlinedButton(
+            content=ft.Text("Вернуться в меню", font_family="Ebbe", size=26, color=ft.colors.WHITE),
+            on_click=lambda e: self.show_menu(),
+            style=ft.ButtonStyle(
+                side=ft.BorderSide(2, ft.colors.WHITE)
+            )
+        )
+        back_button.on_hover = lambda e: self.handle_hover(back_button, e)
+
+        self.page.add(
+            ft.Column(
+                [
+                    error_text,
+                    back_button
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
+            )
+        )
+        self.page.update()

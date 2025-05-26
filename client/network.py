@@ -14,14 +14,21 @@ class NetworkClient:
         self.game_ui = None
         self.night_data: Dict[str, Any] = {}
         self.is_alive = True
+        self.exception=False
 
     async def connect(self, name: str) -> bool:
         try:
             self.name = name
-            self.ws = await websockets.connect("ws://localhost:8000/ws")
+            self.ws = await websockets.connect(
+                "ws://localhost:8000/ws",
+                open_timeout=3
+            )
             await self.ws.send(json.dumps({"type": "join", "name": name}))
             asyncio.create_task(self.listen())
             return True
+        except (ConnectionRefusedError, OSError, asyncio.TimeoutError):
+            print("Сервер недоступен")
+            return False
         except Exception as e:
             print(f"Connection error: {e}")
             return False
@@ -31,7 +38,14 @@ class NetworkClient:
             async for message in self.ws:
                 data = json.loads(message)
                 await self.handle_message(data)
-        except websockets.exceptions.ConnectionClosed:
+        except websockets.exceptions.ConnectionClosedOK:
+            print("Соединение закрыто нормально")
+            await self.handle_disconnect()
+        except websockets.exceptions.ConnectionClosedError as e:
+            print(f"Соединение закрыто с ошибкой: {e}")
+            await self.handle_disconnect()
+        except Exception as e:
+            print(f"Неизвестная ошибка: {e}")
             await self.handle_disconnect()
 
     async def send(self, data: dict):
@@ -43,7 +57,7 @@ class NetworkClient:
         print(f"Получено сообщение типа: {message_type}")
         if message_type == "show_roles":
             if self.game_ui:
-                self.game_ui.show_role_view(self.role, data.get("players", []), data["duration"])
+                self.game_ui.show_role_view(self.role, data["duration"])
         elif message_type == "role":
             await self.handle_role_assignment(data)
         elif message_type=="night_result":
@@ -122,8 +136,6 @@ class NetworkClient:
             self.game_ui.show_error(error_msg)
 
     async def handle_disconnect(self):
-        if self.game_ui:
-            self.game_ui.show_connection_error()
         await self.close_ws()
 
     async def close_ws(self):

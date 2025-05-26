@@ -1,4 +1,3 @@
-# server/main.py
 from fastapi import FastAPI
 from fastapi.websockets import WebSocket
 from fastapi.middleware.cors import CORSMiddleware
