@@ -2,14 +2,14 @@
 import asyncio
 import json
 import flet as ft
-from flet.core.types import MainAxisAlignment
+from flet.core.types import MainAxisAlignment, TextAlign
 from network import NetworkClient
 
 w_style = ft.TextStyle(font_family="Ebbe", color=ft.colors.WHITE, size=26)
 r_style = ft.TextStyle(font_family="Ebbe", color=ft.colors.RED, size=26)
 l_r_style = ft.TextStyle(font_family="Ebbe", color=ft.colors.RED, size=20)
 l_w_style = ft.TextStyle(font_family="Ebbe", color=ft.colors.WHITE, size=20)
-with open('client/role.json', 'r', encoding='utf-8') as file:
+with open('/Users/marialazarevic/PycharmProjects/mafia/client/role.json', 'r', encoding='utf-8') as file:
     jsonroles = json.load(file)
 
 class GameUI:
@@ -17,7 +17,7 @@ class GameUI:
         self.page = page
         self.network = network
         self._init_ui()
-        self.show_connect_view()
+        self.show_menu()
         self.list_players = []
         self.role=""
         self.name=""
@@ -58,7 +58,6 @@ class GameUI:
             on_click=self.send_chat_message
         )
 
-
     @staticmethod
     def handle_hover(button, e):
         if e.data == "true":
@@ -70,24 +69,55 @@ class GameUI:
         button.update()
 
     def show_connect_view(self):
-        self.page.run_task(self.network.close_ws)
         self.clear_page()
-        self.page.decoration = ft.BoxDecoration(
-            image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
-                                     fit=ft.ImageFit.COVER)
+        # Создаем кнопку "назад"
+        back_button = ft.IconButton(
+            icon=ft.icons.ARROW_BACK,
+            icon_color=ft.colors.WHITE,
+            on_click=lambda _: self.show_menu()
         )
-        self.page.add(
-            ft.Column(
-                controls=[
-                    self.player_name,
-                    ft.Row(
-                        controls=[self.connect_btn],
-                        alignment=MainAxisAlignment.CENTER
-                    )
-                ],
-                alignment=ft.MainAxisAlignment.CENTER
+
+        # Настройка фона
+        self.page.decoration = ft.BoxDecoration(
+            image=ft.DecorationImage(
+                src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
+                fit=ft.ImageFit.COVER
             )
         )
+
+        # Контейнер с элементами формы
+        form_container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    self.player_name,
+                    self.connect_btn
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=20
+            ),
+            alignment=ft.alignment.center,
+            expand=True
+        )
+
+        # Контейнер с кнопкой "назад"
+        back_container = ft.Container(
+            content=back_button,
+            alignment=ft.alignment.top_left,
+            padding=20
+        )
+
+        # Используем Stack для слоистого расположения
+        self.page.add(
+            ft.Stack(
+                controls=[
+                    form_container,
+                    back_container
+                ],
+                expand=True
+            )
+        )
+        self.page.update()
 
     async def connect(self, e):
         self.name = self.player_name.value
@@ -514,6 +544,10 @@ class GameUI:
     def show_game_over(self, winner: str, roles: dict):
         self.clear_page()
         self.current_view = "game_over"
+        self.page.decoration = ft.BoxDecoration(
+            image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
+                                     fit=ft.ImageFit.COVER)
+        )
         role_list = ft.ListView(expand=True)
         for name, role in roles.items():
             role_list.controls.append(
@@ -521,7 +555,7 @@ class GameUI:
             )
         button = ft.OutlinedButton(
             content=ft.Text("Вернуться в лобби", font_family="Ebbe", size=26, color=ft.colors.WHITE),
-            on_click=lambda e: self._return_to_lobby(e),
+            on_click=lambda e: self.page.run_task(self._return_to_lobby, e),
             style=ft.ButtonStyle(
                 side=ft.BorderSide(2, ft.colors.WHITE)
             )
@@ -543,4 +577,99 @@ class GameUI:
 
     async def _return_to_lobby(self, e):
         await self.network.close_ws()
-        self.show_connect_view()
+        self.show_menu()
+
+    def show_game_cancelled(self):
+        self.clear_page()
+        self.page.decoration = ft.BoxDecoration(
+            image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
+                                     fit=ft.ImageFit.COVER)
+        )
+        button = ft.OutlinedButton(
+            content=ft.Text("Вернуться в лобби", font_family="Ebbe", size=26, color=ft.colors.WHITE),
+            on_click=lambda e: self.page.run_task(self._return_to_lobby, e),  # Исправлено здесь
+            style=ft.ButtonStyle(
+                side=ft.BorderSide(2, ft.colors.WHITE)
+            )
+        )
+        button.on_hover = lambda e: self.handle_hover(button, e)
+        self.page.add(
+            ft.Column(
+                [
+                    ft.Text("Игра отменена из-за недостатоного количества игроков!", style=r_style),
+                    button
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
+            )
+        )
+        self.page.update()
+
+    def show_menu(self):
+        self.clear_page()
+        self.page.decoration = ft.BoxDecoration(
+            image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
+                                     fit=ft.ImageFit.COVER)
+        )
+        connect_button = ft.OutlinedButton(
+            content=ft.Text("Подключиться к игре", font_family="Ebbe", size=26, color=ft.colors.WHITE),
+            on_click = lambda e: self.show_connect_view(),
+            style=ft.ButtonStyle(
+                side=ft.BorderSide(2, ft.colors.WHITE)
+            )
+        )
+        connect_button.on_hover = lambda e: self.handle_hover(connect_button, e)
+        rules_button = ft.OutlinedButton(
+            content=ft.Text("Правила игры", font_family="Ebbe", size=26, color=ft.colors.WHITE),
+            on_click=lambda e: self.show_rules(),
+            style=ft.ButtonStyle(
+                side=ft.BorderSide(2, ft.colors.WHITE)
+            )
+        )
+        rules_button.on_hover = lambda e: self.handle_hover(rules_button, e)
+        exit_button = ft.OutlinedButton(
+            content=ft.Text("Выйти", font_family="Ebbe", size=26, color=ft.colors.WHITE),
+            on_click=lambda e: self.close_app(),
+            style=ft.ButtonStyle(
+                side=ft.BorderSide(2, ft.colors.WHITE)
+            )
+        )
+        exit_button.on_hover = lambda e: self.handle_hover(exit_button, e)
+        self.page.controls.append(connect_button)
+        self.page.controls.append(rules_button)
+        self.page.controls.append(exit_button)
+        self.page.update()
+
+    def show_rules(self):
+        self.clear_page()
+        self.page.decoration = ft.BoxDecoration(
+            image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
+                                     fit=ft.ImageFit.COVER)
+        )
+        back_button = ft.IconButton(
+            icon=ft.icons.ARROW_BACK,
+            icon_color=ft.colors.WHITE,
+            on_click=lambda _: self.show_menu()
+        )
+        rules_text = ft.Text(jsonroles['rules'], style=l_r_style, text_align=TextAlign.JUSTIFY)
+        rules=ft.Container(
+            content=rules_text,
+            width=0.95 * self.page.window.width,
+            alignment=ft.alignment.center,
+            expand=True)
+        self.page.add(
+            ft.Column(
+                [
+                    ft.Row([back_button], alignment=ft.MainAxisAlignment.START),
+                    rules
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                scroll=ft.ScrollMode.ALWAYS
+            )
+        )
+        self.page.update()
+
+    def close_app(self, event=None):
+        if self.page:
+            self.page.window.close()
+            self.page.update()

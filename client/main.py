@@ -11,6 +11,5 @@ def main(page: ft.Page):
     game_ui = GameUI(page, network)
     network.set_game_ui(game_ui)
 
-
 if __name__ == "__main__":
     ft.app(target=main)

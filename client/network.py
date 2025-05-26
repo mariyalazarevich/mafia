@@ -1,3 +1,4 @@
+
 import websockets
 import json
 import asyncio
@@ -59,7 +60,9 @@ class NetworkClient:
         elif message_type == "players_update":
             await self.handle_players_update(data)
         elif message_type == "game_over":
-            await self.handle_game_over(data)
+            if data["winner"] == "game_cancelled":
+                await self.handle_game_cancelled(data)
+            else: await self.handle_game_over(data)
         elif message_type == "error":
             await self.handle_error(data)
         elif message_type == "game_starting":
@@ -124,11 +127,22 @@ class NetworkClient:
         await self.close_ws()
 
     async def close_ws(self):
-        if self.ws and not self.ws.closed:
-            await self.ws.close()
-        self.ws = None
+        if self.ws:
+            try:
+                await self.ws.close()
+            except Exception as e:
+                print(f"Ошибка при закрытии соединения: {e}")
+            finally:
+                self.ws = None
         self.name = ""
 
     def set_game_ui(self, game_ui):
         self.game_ui = game_ui
 
+    async def handle_game_cancelled(self, data):
+        self.is_alive = True
+        self.role = None
+        self.players = {}
+        if self.game_ui:
+            self.game_ui.show_game_cancelled()
+        await self.close_ws()

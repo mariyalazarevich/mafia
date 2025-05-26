@@ -15,7 +15,7 @@ class Game:
         self.day_number = 1
         self.night_actions: Dict[Role, str] = {}
         self.votes: Dict[str, str] = {}
-        self.min_players = 5
+        self.min_players = 3
         self.start_task = None
         self.lock = asyncio.Lock()
 
@@ -74,14 +74,15 @@ class Game:
         if player_name in self.connections:
             del self.connections[player_name]
         if self.game_started:
-            alive_players = [p.name for p in self.players.values() if p.is_alive]
-            await self.broadcast({
-                "type": "players_update",
-                "players": alive_players
-            })
-            current_alive = len([p for p in self.players.values() if p.is_alive])
-            if current_alive < self.min_players:
-                await self.end_game("game_cancelled")
+            if was_alive:
+                alive_players = [p.name for p in self.players.values() if p.is_alive]
+                await self.broadcast({
+                    "type": "players_update",
+                    "players": alive_players
+                })
+                current_alive = len([p for p in self.players.values() if p.is_alive])
+                if current_alive < self.min_players:
+                    await self.end_game("game_cancelled")
 
     async def start_game(self):
         try:
