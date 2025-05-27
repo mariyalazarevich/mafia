@@ -154,7 +154,7 @@ class GameUI:
         self.page.controls.append(
             ft.Column(
                 controls=[
-                    ft.Text(f"Ваша роль: {role}", style=r_style),
+                    ft.Text(f"Ваша роль: {jsonroles[role]}", style=r_style),
                     ft.Divider(),
                     ft.Text("Состав игроков:", style=l_w_style),
                     ft.Container(
@@ -172,7 +172,7 @@ class GameUI:
 
     def show_night_phase(self, role: str, players: list):
         self.clear_page()
-        title=ft.Text(f"{self.name} : {role}", style=r_style)
+        title=ft.Text(f"{self.name} : {jsonroles[role]}", style=r_style)
         status = ft.Text("Ночная фаза - сделайте свой выбор", style=r_style)
         self.page.controls.append(title)
         self.page.controls.append(status)
@@ -189,7 +189,7 @@ class GameUI:
 
     def not_alive_night_phase(self, role):
         self.clear_page()
-        title = ft.Text(f"{self.name} : {role} – Вы мертвы", style=r_style)
+        title = ft.Text(f"{self.name} : {jsonroles[role]} – Вы мертвы", style=r_style)
         status = ft.Text("Ночная фаза. Дождитесь утра", style=r_style)
         self.page.controls.append(title)
         self.page.controls.append(status)
@@ -279,12 +279,12 @@ class GameUI:
         if killed==protected:
             return f"Мафия пыталась убить {killed}. Но {protected} получил защиту от доктора."
         else:
-            return f"Убит: {killed} ({role}). Получил защиту: {protected}"
+            return f"Убит: {killed} ({jsonroles[role]}). Получил защиту: {protected}"
 
     def show_day_phase(self, players: list, night_data):
         self.current_view = "day"
         self.clear_page()
-        title = ft.Text(f"{self.name} : {self.role}", style=r_style)
+        title = ft.Text(f"{self.name} : {jsonroles[self.role]}", style=r_style)
         self.page.decoration = ft.BoxDecoration(
             image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
                                      fit=ft.ImageFit.COVER)
@@ -359,7 +359,7 @@ class GameUI:
     def not_alive_day_phase(self, players, night_data):
         self.clear_page()
         self.chat_messages.controls.clear()
-        title = ft.Text(f"{self.name} : {self.role} – Вы мертвы", style=r_style)
+        title = ft.Text(f"{self.name} : {jsonroles[self.role]} – Вы мертвы", style=r_style)
         self.page.decoration = ft.BoxDecoration(
             image=ft.DecorationImage(src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
                                      fit=ft.ImageFit.COVER)
@@ -377,7 +377,7 @@ class GameUI:
     def show_day_result(self, data):
         self.clear_page()
         self.chat_messages.controls.clear()
-        title1 = ft.Text(f"{self.name} : {self.role}", style=r_style)
+        title1 = ft.Text(f"{self.name} : {jsonroles[self.role]}", style=r_style)
         title = ft.Text(data["message"], style=r_style)
         text=ft.Text("Ожидание ночной фазы...", style=w_style)
         self.page.controls.append(ft.Text("День. Обсуждение", style=w_style))
@@ -544,7 +544,7 @@ class GameUI:
         role_list = ft.ListView(expand=True)
         for name, role in roles.items():
             role_list.controls.append(
-                ft.Text(f"{name}: {role}", style=w_style)
+                ft.Text(f"{name}: {jsonroles[role]}", style=w_style)
             )
         button = ft.OutlinedButton(
             content=ft.Text("Вернуться в лобби", font_family="Ebbe", size=26, color=ft.colors.WHITE),
@@ -687,6 +687,34 @@ class GameUI:
         )
         back_button.on_hover = lambda e: self.handle_hover(back_button, e)
 
+        self.page.add(
+            ft.Column(
+                [
+                    error_text,
+                    back_button
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
+            )
+        )
+        self.page.update()
+
+    def show_server_disconnected(self):
+        self.clear_page()
+        self.page.decoration = ft.BoxDecoration(
+            image=ft.DecorationImage(
+                src="/Users/marialazarevic/Downloads/MAFIA DE Wallpapers black suit-2.jpg",
+                fit=ft.ImageFit.COVER
+            )
+        )
+        error_text = ft.Text("Соединение с сервером потеряно!", style=r_style)
+        back_button = ft.OutlinedButton(
+            content=ft.Text("Вернуться в меню", font_family="Ebbe", size=26, color=ft.colors.WHITE),
+            on_click=lambda e: self.show_menu(),
+            style=ft.ButtonStyle(
+                side=ft.BorderSide(2, ft.colors.WHITE)
+            ))
+        back_button.on_hover = lambda e: self.handle_hover(back_button, e)
         self.page.add(
             ft.Column(
                 [

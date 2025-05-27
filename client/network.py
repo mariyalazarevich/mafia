@@ -38,11 +38,8 @@ class NetworkClient:
             async for message in self.ws:
                 data = json.loads(message)
                 await self.handle_message(data)
-        except websockets.exceptions.ConnectionClosedOK:
-            print("Соединение закрыто нормально")
-            await self.handle_disconnect()
-        except websockets.exceptions.ConnectionClosedError as e:
-            print(f"Соединение закрыто с ошибкой: {e}")
+        except (websockets.exceptions.ConnectionClosedError, websockets.exceptions.ConnectionClosedOK, ConnectionResetError) as e:
+            print(f"Соединение закрыто: {e}")
             await self.handle_disconnect()
         except Exception as e:
             print(f"Неизвестная ошибка: {e}")
@@ -76,6 +73,8 @@ class NetworkClient:
         elif message_type == "game_over":
             if data["winner"] == "game_cancelled":
                 await self.handle_game_cancelled(data)
+            elif data["winner"] == "connection_lost":
+                self.game_ui.show_server_disconnected()
             else: await self.handle_game_over(data)
         elif message_type == "error":
             await self.handle_error(data)
@@ -137,6 +136,8 @@ class NetworkClient:
 
     async def handle_disconnect(self):
         await self.close_ws()
+        if self.game_ui:
+            self.game_ui.show_server_disconnected()
 
     async def close_ws(self):
         if self.ws:
