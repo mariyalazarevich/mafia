@@ -557,7 +557,7 @@ class GameUI:
         self.page.add(
             ft.Column(
                 [
-                    ft.Text(f"Победили: {winner.capitalize()}!", style=r_style),
+                    ft.Text(f"Победили: {jsonroles[winner]}!", style=r_style),
                     ft.Text("Роли игроков:", style=w_style),
                     ft.Container(role_list, alignment=ft.alignment.center),
                     button
