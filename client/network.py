@@ -19,6 +19,10 @@ class NetworkClient:
     async def connect(self, name: str) -> bool:
         try:
             self.name = name
+            for n in self.players.keys():
+                if self.name == n:
+                    self.exception=True
+                    return False
             self.ws = await websockets.connect(
                 "ws://localhost:8000/ws",
                 open_timeout=3
@@ -38,9 +42,13 @@ class NetworkClient:
             async for message in self.ws:
                 data = json.loads(message)
                 await self.handle_message(data)
-        except (websockets.exceptions.ConnectionClosedError, websockets.exceptions.ConnectionClosedOK, ConnectionResetError) as e:
-            print(f"Соединение закрыто: {e}")
-            await self.handle_disconnect()
+        except websockets.exceptions.ConnectionClosed as e:
+            print(f"Соединение закрыто с кодом {e.code}: {e.reason}")
+            if e.code == 4001:
+                self.exception=True
+                return
+            else:
+                await self.handle_disconnect()
         except Exception as e:
             print(f"Неизвестная ошибка: {e}")
             await self.handle_disconnect()

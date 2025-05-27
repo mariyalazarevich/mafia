@@ -6,6 +6,9 @@ import random
 import json
 import asyncio
 
+with open('/Users/marialazarevic/PycharmProjects/mafia/client/role.json', 'r', encoding='utf-8') as file:
+    jsonroles = json.load(file)
+
 class Game:
     def __init__(self):
         self.players: Dict[str, Player] = {}
@@ -118,7 +121,6 @@ class Game:
                         print("[Сервер] Игра отменена")
                         return
 
-                # Назначение ролей
                 roles = [Role.MAFIA, Role.DOCTOR] + [Role.VILLAGER] * (len(initial_players) - 2)
                 random.shuffle(roles)
 
@@ -130,7 +132,6 @@ class Game:
                         "players": initial_players
                     })
 
-                # Новая задержка для показа ролей
                 for i in range(5, 0, -1):
                     await self.broadcast({"type": "show_roles", "duration": i})
                     await asyncio.sleep(1)
@@ -180,9 +181,10 @@ class Game:
         doctor_players = [p for p in self.players.values() if p.role == Role.DOCTOR]
         tasks = []
         for player in mafia_players + doctor_players:
-            tasks.append(
-                self.wait_for_night_action(player.name, player.role)
-            )
+            if player.is_alive:
+                tasks.append(
+                    self.wait_for_night_action(player.name, player.role)
+                )
         await asyncio.gather(*tasks)
         await self.process_night_actions()
 
@@ -322,10 +324,11 @@ class Game:
         if len(candidates) == 1:
             executed = candidates[0]
             self.players[executed].is_alive = False
+            role=self.players[executed].role.value
             await self.broadcast({
                 "type": "day_result",
                 "executed": executed,
-                "message": f"{executed} ({self.players[executed].role}) был казнен"
+                "message": f"{executed} ({jsonroles[role]}) был казнен"
             })
         else:
             await self.broadcast({
