@@ -79,16 +79,17 @@ class Game:
                 del self.connections[player_name]
 
         if self.game_started:
-            await self.broadcast({
-                "type": "game_over",
-                "winner": "connection_lost",
-                "roles": {p.name: p.role.value for p in self.players.values()}
-            })
-            self.game_started = False
-            self.players.clear()
-            self.connections.clear()
-
+            if was_alive:
+                alive_players = [p.name for p in self.players.values() if p.is_alive]
+                await self.broadcast({
+                    "type": "players_update",
+                    "players": alive_players
+                })
+                current_alive = len([p for p in self.players.values() if p.is_alive])
+                if current_alive < self.min_players:
+                    await self.end_game("game_cancelled")
         else:
+
             await self.broadcast({
                 "type": "players_update",
                 "players": [p.name for p in self.players.values()]
